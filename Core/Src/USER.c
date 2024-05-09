@@ -14,50 +14,61 @@ uint32_t Cap_Flag = 0;
 uint8_t Morse_Flag = 0;
 uint8_t Morse_Code[6] = {0};
 
-uint8_t TxBuffer[16];
+uint8_t TxBuffer[4][16];
+
+void Switch_Event(uint8_t * st) {
+//	if (HAL_GPIO_ReadPin(GPIOB,BUT1_Pin) == GPIO_PIN_RESET) {
+//		*st++;
+//		if (*st == 6) {
+//			*st = 0;
+//		}
+//	}
+//	HAL_Delay(200);
+}
 
 void Show_State_OLED(uint8_t state) {
-	sprintf((char *)TxBuffer, "State= %2d", state);
-	OLED_Show_String(0,0, TxBuffer);
+	sprintf((char *)TxBuffer[0], "State= %2d", state);
+	OLED_Show_String(0,0, TxBuffer[0]);
 }
 
 void Show_Freq_OLED(void) {
-	sprintf((char *)TxBuffer, "Freq= %7dHz", Freq*100);
-	OLED_Show_String(0,6, TxBuffer);
+	sprintf((char *)TxBuffer[3], "Freq= %7.1fkHz", (float)Freq / 10);
+	OLED_Show_String(0,6, TxBuffer[3]);
 }
 
 //status 0
 void ALL_Response_SET(void) {
-	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
+	HAL_Delay(10);
 }
 void ALL_Response_RESET(void) {
-	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
 }
 //status 1
 void F10k_Response_SET(void) {
-	OLED_Show_String(0,0, TxBuffer);
 	if (Freq >= 99 && Freq <= 101) {
 		//twinkle LED_R
-		HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
 	}
+	HAL_Delay(10);
 }
 void F10k_Response_RESET(void) {
-	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
 }
 //status 2
 void Morse_Decode_Init(void) {
-	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
 }
 void Morse_Decode_Close(void) {
-	HAL_TIM_IC_Stop_IT(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_IC_Stop_IT(&htim4, TIM_CHANNEL_3);
 }
 
 
 //Frequncy Calaulate
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim->Instance == htim4.Instance) {
-		pwm_value = __HAL_TIM_GetCounter(&htim2);
-		__HAL_TIM_SetCounter(&htim2, 0);
+	if (htim->Instance == htim3.Instance) {
+		pwm_value = __HAL_TIM_GetCounter(&htim1);
+		__HAL_TIM_SetCounter(&htim1, 0);
 		pwm_sum += pwm_value;
 		pwm_value = 0;
 		pwm_flag++;
@@ -75,9 +86,9 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	uint16_t Cap_Diff = 0;
 	//1:dot 2:dash
 
-	if (htim == &htim3 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
+	if (htim == &htim4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
 		Cap_Rcd[0] = Cap_Rcd[1];
-		Cap_Rcd[1] = HAL_TIM_ReadCapturedValue(&htim3,TIM_CHANNEL_1);
+		Cap_Rcd[1] = HAL_TIM_ReadCapturedValue(&htim4,TIM_CHANNEL_3);
 	}
 	else {
 		return;
@@ -101,8 +112,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	else {
 		return;
 	}
-
-
 
 	//dot: 100ms dash: 300ms tim: 1/10000s
 }

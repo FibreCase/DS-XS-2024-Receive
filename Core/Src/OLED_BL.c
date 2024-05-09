@@ -138,3 +138,16 @@ void OLED_Show_String(uint8_t x, uint8_t y, uint8_t *ch) {
 	}
 }
 
+void OLED_Fill(unsigned char fill_Data[8][128])//全屏填充
+{
+	unsigned char m, n;
+	for (m = 0; m < 8; m++) {
+		OLED_Write_Cmd(0xb0 + m);        //page0-page1
+		OLED_Write_Cmd(0x00);        //low column start address
+		OLED_Write_Cmd(0x10);        //high column start address
+		for (n = 0; n < 128; n++) {
+			OLED_Write_Data(fill_Data[m][n]);
+		}
+	}
+}
+

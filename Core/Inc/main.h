@@ -33,6 +33,7 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 
 #include "USER.h"
+#include "USERDATA.h"
 #include "tim.h"
 #include "OLED_BL.h"
 #include "stdio.h"
@@ -62,12 +63,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_R_Pin GPIO_PIN_12
+#define LED_R_Pin GPIO_PIN_11
 #define LED_R_GPIO_Port GPIOA
 #define LED_G_Pin GPIO_PIN_15
 #define LED_G_GPIO_Port GPIOA
-#define LM_Pin GPIO_PIN_8
-#define LM_GPIO_Port GPIOB
 #define BUT1_Pin GPIO_PIN_9
 #define BUT1_GPIO_Port GPIOB
 #define BUT1_EXTI_IRQn EXTI9_5_IRQn

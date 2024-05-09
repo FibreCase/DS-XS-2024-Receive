@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "iwdg.h"
 #include "tim.h"
 #include "gpio.h"
 
@@ -47,6 +48,7 @@
 /* USER CODE BEGIN PV */
 
 uint8_t state = 0;
+uint8_t BUT_EXTI_State = 0;
 
 /* USER CODE END PV */
 
@@ -90,15 +92,16 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-  MX_TIM2_Init();
   MX_TIM4_Init();
   MX_TIM3_Init();
+  MX_TIM1_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Base_Start_IT(&htim4);
+  HAL_TIM_Base_Start(&htim1);
+  HAL_TIM_Base_Start_IT(&htim3);
 
-  HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+  MX_IWDG_Init();
 
   OLED_Init();
   OLED_Clear();
@@ -110,14 +113,14 @@ int main(void)
 	while (1) {
 
 		Show_Freq_OLED();
+		Show_State_OLED(state);
 
 		//state machine
 		switch (state) {
 
 			//receive all signal and light LED
 			case 0:
-				Show_State_OLED(state);
-				if (HAL_GPIO_ReadPin(GPIOB,LM_Pin) == GPIO_PIN_RESET) {
+				if (HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_12) == GPIO_PIN_RESET) {
 					ALL_Response_SET();
 				}
 				else {
@@ -127,8 +130,7 @@ int main(void)
 
 			//receive 10k signal and twinkle LED
 			case 1:
-				Show_State_OLED(state);
-				if (HAL_GPIO_ReadPin(GPIOB,LM_Pin) == GPIO_PIN_RESET) {
+				if (HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_12) == GPIO_PIN_RESET) {
 					F10k_Response_SET();
 				}
 				else {
@@ -138,24 +140,31 @@ int main(void)
 
 			//morse code
 			case 2:
-				Show_State_OLED(state);
+				HAL_GPIO_WritePin(GPIOA,LED_G_Pin,GPIO_PIN_RESET);
+
 				break;
 
 			//auto send mode
 			case 3:
-				Show_State_OLED(state);
+				HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
 				break;
 
 			//data send mode
 			case 4:
-				Show_State_OLED(state);
+
 				break;
 
 			//voice play
 			case 5:
-				Show_State_OLED(state);
+
 				break;
+
+			//image test
+			case 6: OLED_Fill(Image);
+				break;
+
 		}
+	HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -175,10 +184,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
@@ -207,10 +217,12 @@ void SystemClock_Config(void)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == BUT1_Pin) {
 		state++;
-		if (state == 6) {
+		if (state >= 6) {
 			state = 0;
 		}
 	}
+	HAL_GPIO_WritePin(GPIOA,LED_G_Pin,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
 }
 
 /* USER CODE END 4 */

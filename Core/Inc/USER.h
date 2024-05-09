@@ -9,6 +9,8 @@
 
 #include "main.h"
 
+void Switch_Event(uint8_t * state);
+
 void ALL_Response_SET(void);
 void ALL_Response_RESET(void);
 void F10k_Response_SET(void);

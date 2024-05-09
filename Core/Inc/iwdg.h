@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    tim.h
+  * @file    iwdg.h
   * @brief   This file contains all the function prototypes for
-  *          the tim.c file
+  *          the iwdg.c file
   ******************************************************************************
   * @attention
   *
@@ -18,8 +18,8 @@
   */
 /* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __TIM_H__
-#define __TIM_H__
+#ifndef __IWDG_H__
+#define __IWDG_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,19 +32,13 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern TIM_HandleTypeDef htim1;
-
-extern TIM_HandleTypeDef htim3;
-
-extern TIM_HandleTypeDef htim4;
+extern IWDG_HandleTypeDef hiwdg;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_TIM1_Init(void);
-void MX_TIM3_Init(void);
-void MX_TIM4_Init(void);
+void MX_IWDG_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
@@ -54,5 +48,5 @@ void MX_TIM4_Init(void);
 }
 #endif
 
-#endif /* __TIM_H__ */
+#endif /* __IWDG_H__ */
 

@@ -31,3 +31,6 @@ void OLED_Show_String(uint8_t x, uint8_t y, uint8_t *ch);
   * @param *ch：要显示的字符串
   */
 
+void OLED_Fill(unsigned char fill_Data[8][128]);
+
+
