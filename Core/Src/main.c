@@ -26,6 +26,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "USERDATA.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,8 +49,10 @@
 
 /* USER CODE BEGIN PV */
 
-uint8_t state = 0;
-uint8_t BUT_EXTI_State = 0;
+uint8_t state = 2;
+uint8_t init_status = 0;
+
+uint8_t Manual_Morse_State = 0;
 
 /* USER CODE END PV */
 
@@ -96,15 +100,17 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM1_Init();
   MX_IWDG_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_TIM_Base_Start(&htim1);
-  HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_Base_Start(&htim1);
+	HAL_TIM_Base_Start(&htim2);
+	HAL_TIM_Base_Start_IT(&htim3);
 
-  MX_IWDG_Init();
+	MX_IWDG_Init();
 
-  OLED_Init();
-  OLED_Clear();
+	OLED_Init();
+	OLED_Clear();
 
   /* USER CODE END 2 */
 
@@ -112,15 +118,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
 
-		Show_Freq_OLED();
-		Show_State_OLED(state);
+		if (init_status == 1) {
+			HAL_GPIO_WritePin(GPIOA, LED_G_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_SET);
+
+			OLED_Clear();
+			init_status = 0;
+		}
 
 		//state machine
 		switch (state) {
-
 			//receive all signal and light LED
-			case 0:
-				if (HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_12) == GPIO_PIN_RESET) {
+			case 0: Show_OLED(state);
+				if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET) {
 					ALL_Response_SET();
 				}
 				else {
@@ -128,9 +138,9 @@ int main(void)
 				}
 				break;
 
-			//receive 10k signal and twinkle LED
-			case 1:
-				if (HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_12) == GPIO_PIN_RESET) {
+				//receive 10k signal and twinkle LED
+			case 1: Show_OLED(state);
+				if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET) {
 					F10k_Response_SET();
 				}
 				else {
@@ -138,33 +148,27 @@ int main(void)
 				}
 				break;
 
-			//morse code
-			case 2:
-				HAL_GPIO_WritePin(GPIOA,LED_G_Pin,GPIO_PIN_RESET);
+				//manual morse code
+			case 2: Show_OLED(state);
+				Manual_Morse();
+				break;
+
+				//auto send mode
+			case 3: Show_OLED(state);
+				HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_RESET);
+				break;
+
+				//data send mode
+			case 4: Show_OLED(state);
 
 				break;
 
-			//auto send mode
-			case 3:
-				HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_RESET);
-				break;
-
-			//data send mode
-			case 4:
-
-				break;
-
-			//voice play
-			case 5:
-
-				break;
-
-			//image test
-			case 6: OLED_Fill(Image);
+				//image test
+			case 5: OLED_Fill(Image);
 				break;
 
 		}
-	HAL_IWDG_Refresh(&hiwdg);
+		HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -221,8 +225,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 			state = 0;
 		}
 	}
-	HAL_GPIO_WritePin(GPIOA,LED_G_Pin,GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOA,LED_R_Pin,GPIO_PIN_SET);
+	init_status = 1;
 }
 
 /* USER CODE END 4 */

@@ -33,7 +33,6 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 
 #include "USER.h"
-#include "USERDATA.h"
 #include "tim.h"
 #include "OLED_BL.h"
 #include "stdio.h"
