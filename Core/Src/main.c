@@ -49,7 +49,7 @@
 
 /* USER CODE BEGIN PV */
 
-uint8_t state = 2;
+uint8_t state = 3;
 uint8_t init_status = 0;
 
 uint8_t Manual_Morse_State = 0;
@@ -104,7 +104,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 	HAL_TIM_Base_Start(&htim1);
-	HAL_TIM_Base_Start(&htim2);
+
 	HAL_TIM_Base_Start_IT(&htim3);
 
 	MX_IWDG_Init();
@@ -154,8 +154,8 @@ int main(void)
 				break;
 
 				//auto send mode
-			case 3: Show_OLED(state);
-				HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_RESET);
+			case 3: Show_OLED_STATUS3(state);
+				Auto_Morse();
 				break;
 
 				//data send mode

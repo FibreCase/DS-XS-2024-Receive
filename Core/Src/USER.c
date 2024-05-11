@@ -2,10 +2,11 @@
 // Created by fibre on 2024/5/6.
 //
 
-#define UNIT_TIME 200 //100ms
+#define UNIT_TIME 200
 
 #include "USER.h"
 
+//freq
 uint8_t pwm_flag = 0;
 
 uint16_t pwm_value = 0;
@@ -14,26 +15,56 @@ uint32_t pwm_sum = 0;
 
 uint32_t Freq = 0;
 
+//manual_morse
 uint8_t Manual_State = 0;
 
-uint16_t Manual_Rcd = 0;
-uint16_t Manual_Rcd_Last = 0;
-uint16_t Manual_Rcd_Last_En = 0;
-uint16_t Manual_Rcd_Diff = 0;
+//morse translate
+uint8_t Auto_Bit_State = 0;
+// 0: ready 1: dot 2: dash
 
-uint16_t Cap_Rcd[2] = {0};
+uint8_t Auto_Char_State = 0;
+// 0: ready 1: receive
 
-uint32_t Cap_Flag = 0;
+uint8_t Auto_Word_State = 0;
+// 0: ready 1: receive 2: request translate
 
-uint8_t Morse_Flag = 0;
+uint8_t Morse_Bit_Flag = 0;
 
-uint8_t Morse_Code[6] = {0};
+uint8_t Morse_Char_Flag = 0;
 
+uint8_t Morse_Code[256][6];
+
+uint16_t Morse_Word[256];
+
+char Translate_Word[256];
+
+uint16_t Morse_Sheet[36] = {
+	22222, 12222, 11222, 11122, 11112, 11111,
+	21111, 22111, 22211, 22221, 12, 2111, 2121, 211, 1,//E
+	1121, 221, 1111, 11, 1222, 212, 1211, 22, 21, 222,//O
+	1221, 2212, 121, 111, 2, 112, 1112, 122, 2112, 2122, 2211//Z
+};
+
+const unsigned char Morse_Char[36] = {
+	48, 49, 50, 51, 52, 53, 54, 55, 56, 57, //0-9
+	65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, //A-K
+	76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, //L-U
+	87, 88, 89, 90 //V-Z
+};
+
+//OLED show
 uint8_t TxBuffer[4][16];
 
 void Show_OLED(uint8_t state) {
 	Show_Freq_OLED();
 	Show_State_OLED(state);
+}
+
+void Show_OLED_STATUS3(uint8_t state) {
+	Show_Freq_OLED();
+	Show_State_OLED(state);
+	sprintf((char *)TxBuffer[2], "%d", Auto_Bit_State);
+	OLED_Show_String(0, 2, (uint8_t *)TxBuffer[2]);
 }
 
 void Show_State_OLED(uint8_t state) {
@@ -126,19 +157,20 @@ void F10k_Response_RESET(void) {
 //	}
 //}
 
+//status 2
 void Manual_Morse(void) {
-	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && Manual_State == 0) {
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET && Manual_State == 0) {
 		HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOA, LED_G_Pin, GPIO_PIN_SET);
 	}
 	else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && Manual_State == 0) {
 		HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_RESET);
 		Manual_State = 1;
-		delayMicroseconds(UNIT_TIME * 1000);
+		HAL_Delay(UNIT_TIME);
 		return;
 	}
 	else if (Manual_State == 1) {
-		for (int i = 0; i < 10; ++i) {
+		for (int i = 0; i < 100; ++i) {
 			if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET) {
 				delayMicroseconds(30);
 			}
@@ -152,7 +184,7 @@ void Manual_Morse(void) {
 		Manual_State = 0;
 	}
 	else if (Manual_State == 2) {
-		for (int i = 0; i < 10; ++i) {
+		for (int i = 0; i < 50; ++i) {
 			if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET) {
 				delayMicroseconds(30);
 			}
@@ -162,16 +194,163 @@ void Manual_Morse(void) {
 			}
 		}
 		Manual_State = 0;
+		HAL_Delay(100);
 	}
 }
 
 //status 3
-void Morse_Decode_Init(void) {
-	HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
+void Auto_Morse(void) {
+	if (Auto_Word_State == 2) {
+		Auto_Morse_Translate();
+
+		for (int i = 0; i < 256; ++i) {
+			for (int j = 0; j < 6; ++j) {
+				Morse_Code[i][j] = 0;
+			}
+		}
+
+		Auto_Word_State = 0;
+
+		Morse_Char_Flag = 0;
+		Morse_Bit_Flag = 0;
+	}
+	else {
+		Auto_Morse_One_Word();
+	}
 }
 
-void Morse_Decode_Close(void) {
-	HAL_TIM_IC_Stop_IT(&htim4, TIM_CHANNEL_3);
+void Auto_Morse_One_Word(void) {
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET && Auto_Char_State == 0) {
+		if (__HAL_TIM_GetCounter(&htim2) > 6000) { //3000ms
+			Auto_Word_State = 2;
+			HAL_TIM_Base_Stop(&htim2);
+				__HAL_TIM_SetCounter(&htim2, 0);
+			return;
+		}
+	}
+
+		//one word start
+	else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && Auto_Char_State == 0) {
+		Auto_Word_State = 1;
+		HAL_TIM_Base_Start(&htim2);
+			__HAL_TIM_SetCounter(&htim2, 0);
+		Auto_Morse_One_Char();
+	}
+	else if (Auto_Char_State != 0) {
+			__HAL_TIM_SetCounter(&htim2, 0);
+		Auto_Morse_One_Char();
+	}
+}
+
+void Auto_Morse_One_Char(void) {
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET && Auto_Bit_State == 0) {
+		Auto_Char_State = 0;
+		HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOA, LED_G_Pin, GPIO_PIN_SET);
+		return;
+	}
+		//one word start
+	else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && Auto_Bit_State == 0) {
+		Auto_Char_State = 1;
+
+		Morse_Bit_Flag = 0;
+		Morse_Char_Flag++;
+		Auto_Morse_One_Bit();
+	}
+	else if (Auto_Bit_State != 0) {
+		Auto_Morse_One_Bit();
+	}
+}
+
+void Auto_Morse_One_Bit(void) {
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET && Auto_Bit_State == 0) {
+		HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOA, LED_G_Pin, GPIO_PIN_SET);
+	}
+		//one bit start
+	else if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && Auto_Bit_State == 0) {
+		HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_RESET);
+		Auto_Bit_State = 1;
+		HAL_Delay(UNIT_TIME);
+		return;
+	}
+		//bit switch
+	else if (Auto_Bit_State == 1) {
+		for (int i = 0; i < 100; ++i) {
+			if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET) {
+				delayMicroseconds(30);
+			}
+			else {
+				Auto_Bit_State = 2;
+				HAL_GPIO_WritePin(GPIOA, LED_R_Pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOA, LED_G_Pin, GPIO_PIN_RESET);
+				return;
+			}
+		}
+
+		//end with dot
+		Auto_Bit_State = 0;
+		Morse_Code[Morse_Char_Flag][Morse_Bit_Flag++] = 1;
+	}
+		//bit end
+	else if (Auto_Bit_State == 2) {
+		for (int i = 0; i < 50; ++i) {
+			if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_SET) {
+				delayMicroseconds(30);
+			}
+			else {
+				HAL_Delay(50);
+				return;
+			}
+		}
+
+		//end with dash
+		Auto_Bit_State = 0;
+		Morse_Code[Morse_Char_Flag][Morse_Bit_Flag++] = 2;
+	}
+}
+
+uint16_t Square_10(uint8_t num) {
+	uint16_t result = 1;
+	for (int i = 0; i < num; ++i) {
+		result *= 10;
+	}
+	return result;
+}
+
+void Auto_Morse_Translate(void) {
+	OLED_Show_String(0, 0, (uint8_t *)"Translating...");
+
+	for (int i = 0; i < 256; ++i) {
+		for (int j = 0; j < 6; ++j) {
+			if (Morse_Code[i][j] == 1) {
+				Morse_Word[i] = Morse_Word[i] * 10 + 1;
+			}
+			else if (Morse_Code[i][j] == 2) {
+				Morse_Word[i] = Morse_Word[i] * 10 + 2;
+			}
+			else if (Morse_Code[i][j] == 0) {
+				break;
+			}
+		}
+	}
+
+	for (int i = 0; i < 256; ++i) {
+		if (Morse_Word[i] == 0) {
+			Translate_Word[i] = '\0';
+			break;
+		}
+		else {
+			for (int j = 0; j < 36; ++j) {
+				if (Morse_Word[i] == Morse_Sheet[j]) {
+					Translate_Word[i] = Morse_Char[j];
+					break;
+				}
+			}
+		}
+	}
+
+	OLED_Show_String(0, 4, (uint8_t *)Translate_Word);
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -188,66 +367,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			pwm_sum = 0;
 		}
 	}
-}
 
-//Moris Code
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-	uint16_t Cap_Diff = 0;
-	//1:dot 2:dash
+	//auto morse end
+	if (htim->Instance == htim3.Instance) {
 
-	if (htim == &htim4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
-		Cap_Rcd[0] = Cap_Rcd[1];
-		Cap_Rcd[1] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
 	}
-	else {
-		return;
-	}
-
-	Cap_Diff = Cap_Rcd[1] - Cap_Rcd[0];
-
-	if (Cap_Diff >= 0 && Cap_Diff < 10) {
-		//continuous signal
-		Cap_Flag++;
-		return;
-	}
-	else if (Cap_Diff >= 500 && Cap_Diff <= 2000) {
-		//break
-		Morse_Decode_Break();
-	}
-	else if (Cap_Diff >= 2000 && Cap_Diff <= 4000) {
-		//space
-		Morse_Decode_Space();
-	}
-	else {
-		return;
-	}
-
-	//dot: 100ms dash: 300ms tim: 1/10000s
-}
-
-void Morse_Decode_Break(void) {
-	if (Cap_Flag == 0) {
-		return;
-	}
-	else if (Cap_Flag >= 500 && Cap_Flag <= 1500) {
-		//dot
-		Morse_Code[Morse_Flag] = 1;
-	}
-	else if (Cap_Flag >= 2500 && Cap_Flag <= 3500) {
-		//dash
-		Morse_Code[Morse_Flag] = 2;
-	}
-	else {
-		return;
-	}
-
-	Morse_Flag++;
-	Cap_Flag = 0;
-
-}
-
-void Morse_Decode_Space(void) {
-		__HAL_TIM_SetCounter(&htim4, 0);
 }
 
 static inline void delayMicroseconds(uint32_t us) {

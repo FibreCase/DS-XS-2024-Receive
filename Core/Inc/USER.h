@@ -17,14 +17,16 @@ void F10k_Response_SET(void);
 void F10k_Response_RESET(void);
 
 void Manual_Morse(void);
-void Morse_Switch(void);
 
-void Morse_Decode_Init(void);
-void Morse_Decode_Close(void);
-void Morse_Decode_Break(void);
-void Morse_Decode_Space(void);
+void Auto_Morse(void);
+void Auto_Morse_One_Bit(void);
+void Auto_Morse_One_Char(void);
+void Auto_Morse_One_Word(void);
+void Auto_Morse_Translate(void);
 
 void Show_Freq_OLED(void);
 void Show_State_OLED(uint8_t state);
+
+void Show_OLED_STATUS3(uint8_t state);
 
 static inline void delayMicroseconds(uint32_t us);
