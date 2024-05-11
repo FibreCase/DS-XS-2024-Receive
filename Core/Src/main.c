@@ -49,7 +49,7 @@
 
 /* USER CODE BEGIN PV */
 
-uint8_t state = 3;
+uint8_t state = 0;
 uint8_t init_status = 0;
 
 uint8_t Manual_Morse_State = 0;
@@ -154,7 +154,7 @@ int main(void)
 				break;
 
 				//auto send mode
-			case 3: Show_OLED_STATUS3(state);
+			case 3: Show_OLED(state);
 				Auto_Morse();
 				break;
 
@@ -221,7 +221,7 @@ void SystemClock_Config(void)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == BUT1_Pin) {
 		state++;
-		if (state >= 6) {
+		if (state >= 4) {
 			state = 0;
 		}
 	}
